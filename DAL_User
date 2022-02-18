@@ -1,0 +1,172 @@
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Data.SqlClient;
+using test3.Models.Entity;
+using test3.Models.NewFolder;
+using Xamarin.Forms;
+
+namespace test3.Models.DAL
+{
+    public class DALUser : Interface1
+    {
+        public static void createTable()
+        {
+            try
+            {
+                SqlConnection cnn = DBConnection.GetConnection();
+                cnn.Open();
+                string sql = @"IF NOT EXISTS (  SELECT * 
+                                                FROM sysobjects 
+                                                WHERE name = 'User') 
+                                                    CREATE TABLE [dbo].[User] ( 
+                                                        [Id] BIGINT IDENTITY(1,1) NOT NULL, 
+                                                        [Email] NVARCHAR(50) NOT NULL, 
+                                                        [Password] NVARCHAR (50) NOT NULL,
+                                                        PRIMARY KEY CLUSTERED ([Id] ASC),
+                                                    );";
+
+                using (SqlCommand command = new SqlCommand(sql, cnn))
+                    command.ExecuteNonQuery();
+                cnn.Close();
+            }
+            catch (Exception e)
+            {
+                throw e;
+            }
+        }
+
+        public static User getUserByEmailAndPassword(string Email, string Password)
+        {
+            User user = new User();
+            createTable();
+            try
+            {
+                using (SqlConnection connection = DBConnection.GetConnection())
+                {
+                    connection.Open();
+                    string sql = @" SELECT TOP 1 * 
+                                    FROM [User] 
+                                    WHERE [User].[Email]=@Email AND [User].[Password]=@Password";
+
+                    using (SqlCommand command = new SqlCommand(sql, connection))
+                    {
+                        command.CommandType = CommandType.Text;
+                        command.Parameters.AddWithValue("@Email", Email);
+                        command.Parameters.AddWithValue("@Password", Password);
+
+                        using (SqlDataReader dataReader = command.ExecuteReader())
+                        {
+                            if (dataReader.Read())
+                            {
+                                user.Id = long.Parse(dataReader["Id"].ToString());
+                                user.Email = dataReader["Email"].ToString();
+                                user.Password = dataReader["Password"].ToString();
+                            }
+                        }
+                    }
+                    connection.Close();
+                }
+            }
+            catch (Exception e)
+            {
+                throw e;
+            }
+            return user;
+        }
+
+        public static JsonResponse Add(User u)
+        {
+            JsonResponse jsonResponse = new JsonResponse();
+
+            using (SqlConnection connection = DBConnection.GetConnection())
+            {
+                connection.Open();
+                string sql = "if exists(select * from sysobjects where name = 'User') Insert into [User](Id,Email,Password,) values (@Email,@Password) OUTPUT INSERTED.ID";
+                using (SqlCommand command = new SqlCommand(sql, connection))
+                {
+                    if (String.IsNullOrEmpty(u.Email))
+                        command.Parameters.AddWithValue("@Email", DBNull.Value);
+                    else
+                        command.Parameters.AddWithValue("@Email", u.Email);
+                    if (String.IsNullOrEmpty(u.Password))
+                        command.Parameters.AddWithValue("@Password", DBNull.Value);
+                    else
+                        command.Parameters.AddWithValue("@Password", u.Password);
+
+                    long Id = (long)command.ExecuteScalar();
+
+                    if (Id > 0)
+                    {
+                        jsonResponse.success = true;
+                        jsonResponse.message = Id.ToString();
+                    }
+                    else
+                    {
+                        jsonResponse.success = false;
+                        jsonResponse.message = "erreur";
+                    }
+                }
+                connection.Close();
+            }
+
+            return jsonResponse;
+        }
+
+        public static JsonResponse Update(User user)
+        {
+            JsonResponse jsonResponse = new JsonResponse();
+
+            using (SqlConnection cnn = DBConnection.GetConnection())
+            {
+                string sql = "UPDATE [User] SET [User].[Email]=@Email , [User].[Password]=@Password WHERE Id=@Id";
+                using (SqlCommand cmd = new SqlCommand(sql, cnn))
+                {
+                    cmd.CommandType = CommandType.Text;
+                    cmd.Parameters.AddWithValue("@Id", user.Id);
+
+                    if (cmd.ExecuteNonQuery() == 1)
+                    {
+                        jsonResponse.success = true;
+                        jsonResponse.message = "La mise à jour est réussie";
+                    }
+                    else
+                    {
+                        jsonResponse.success = false;
+                        jsonResponse.message = "Échec de la mise à jour";
+                    }
+
+                }
+            }
+            return jsonResponse;
+        }
+
+        public static JsonResponse Delete(int Id)
+        {
+            JsonResponse jsonResponse = new JsonResponse();
+
+            using (SqlConnection cnn = DBConnection.GetConnection())
+            {
+                string sql = "DELETE FROM [Article] WHERE Id = @Id";
+                using (SqlCommand cmd = new SqlCommand(sql, cnn))
+                {
+                    cmd.CommandType = CommandType.Text;
+
+                    cmd.Parameters.AddWithValue("@Id", Id);
+                    if (cmd.ExecuteNonQuery() == 1)
+                    {
+                        jsonResponse.success = true;
+                        jsonResponse.message = "l'Utilisateur est supprimé";
+                    }
+                    else
+                    {
+                        jsonResponse.success = false;
+                        jsonResponse.message = "Erreur lors de la suppression de l'utilisateur";
+                    }
+                }
+            }
+            return jsonResponse ;
+        }
+
+    }
+}
